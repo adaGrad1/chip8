@@ -6,8 +6,7 @@
 #include <string.h> // Required for memset
 
 #define SCALE 10  // 640x320 window
-#define ROM_PATH "chip8-roms/roms/pong.rom"
-#define VERBOSE 0
+#define ROM_PATH "chip8-roms/roms/ufo.rom"
 
 const uint16_t WIDTH = 64;
 const uint16_t HEIGHT = 32;
@@ -51,7 +50,6 @@ void update_keypresses(uint8_t keys[16]){
             // 4 5 6 D           Q W E R  
             // 7 8 9 E           A S D F
             // A 0 B F           Z X C V
-            printf("keypress: %d\n", e.type);
             switch (e.key.keysym.sym) {
                 case SDLK_1: keys[0x1] = pressed; break;
                 case SDLK_2: keys[0x2] = pressed; break;
@@ -91,7 +89,7 @@ uint8_t tick(){
 }
 
 void draw_screen(SDL_Renderer* renderer, uint8_t display[32][64]){
-            // Clear screen (black)
+        // Clear screen (black)
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
@@ -104,7 +102,7 @@ void draw_screen(SDL_Renderer* renderer, uint8_t display[32][64]){
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
                 if (display[y][x]) {
-                    SDL_Rect pixel = {
+                     SDL_Rect pixel = {
                         x * pixel_width,
                         y * pixel_height,
                         pixel_width,
@@ -114,7 +112,16 @@ void draw_screen(SDL_Renderer* renderer, uint8_t display[32][64]){
                 }
             }
         }
+        SDL_RenderPresent(renderer);
+}
 
+
+void sleep_us(uint32_t sleep_time){
+    struct timespec t = {
+        sleep_time / 1000000,
+        (sleep_time % 1000000) * 1000
+    };
+    nanosleep(&t, NULL);
 }
 
 int main(){
@@ -141,6 +148,7 @@ int main(){
     memcpy(&buffer, &fontset, sizeof(fontset));
     for(int pc = START_ADDR; buffer[pc] || buffer[pc+1]; pc+=2){
         uint8_t t = tick();
+        sleep_us(1200);
         if(t >= delay){
             delay = 0;
         } else{
@@ -153,22 +161,15 @@ int main(){
         }
         if(t > 0){
             draw_screen(renderer, screen);
-            update_keypresses(&keys);
+            // draw_screen_cli(screen);
+            update_keypresses(keys);
         }
         uint16_t instr = (((uint16_t)buffer[pc]) << 8) + buffer[pc+1];
-        if(VERBOSE){
-            printf("PC: 0x%x; ", pc);
-            printf("REGS:\n");
-            for(int i = 0; i < 16; i++){
-                printf("%x,",regs[i]);
-            }
-            printf("\nidx reg: %x\n", idx_register);
-            printf("instr: %x \n", instr);
-        }
         if      ((instr & 0xF000) == 0x0000){ // misc
             switch(instr){
                 case 0x00E0: // clear screen
                     memset(screen, 0, HEIGHT*WIDTH);
+                    printf("cls\n");
                     break;
                 case 0x00EE:
                     pc_stack_ptr -= 1;
@@ -238,7 +239,7 @@ int main(){
                 regs[15] = carry;
             }
             else if ((instr & 0x000F) == 0x0005){ // subtract with borrow
-                uint8_t borrow = regs[y] > regs[r];
+                uint8_t borrow = !(regs[y] > regs[r]);
                 regs[r] -= regs[y];
                 regs[15] = borrow;
             }
@@ -248,7 +249,7 @@ int main(){
                 regs[15] = bit0;
             }
             else if ((instr & 0x000F) == 0x0007){ // right subtract
-                uint8_t borrow = regs[r] > regs[y];
+                uint8_t borrow = regs[y] >= regs[r];
                 regs[r] = regs[y] - regs[r];
                 regs[15] = borrow;
             }
@@ -282,15 +283,24 @@ int main(){
             uint8_t x = regs[(instr & 0x0F00) >> 8];
             uint8_t y = regs[(instr & 0x00F0) >> 4];
             uint8_t s = instr & 0x000F;
+            regs[15] = 0;
             for(int cur_y = y; cur_y < y + s; cur_y++){
                 uint8_t byte = (buffer[idx_register+cur_y-y]);
                 for(int cur_x = x; cur_x < x + 8; cur_x++){
                     uint8_t bit = !!(byte & (128 >> (cur_x-x)));
+                    if(!regs[15] && screen[cur_y%HEIGHT][cur_x%WIDTH] && bit){
+                        regs[15] = 1;
+                    }
                     screen[cur_y%HEIGHT][cur_x%WIDTH] ^= bit;
                 }
             }
         }
         else if ((instr & 0xF000) == 0xE000){ // keyboard inputs
+            uint8_t reg_idx = (instr & 0x0F00) >> 8;
+            uint8_t key_idx = regs[reg_idx];
+            uint8_t skip = keys[key_idx];
+            if((instr & 0x00FF) == 0xA1) skip = !skip;
+            pc += 2*skip;
         }
         else if ((instr & 0xF000) == 0xF000){ // various random things
             uint8_t n_regs;
@@ -300,7 +310,6 @@ int main(){
                     regs[(instr & 0x0F00) >> 8] = delay;
                     break;
                 case(0x0a): // wait for for keypress,put key in register vr	
-                    printf("NOT IMPLEMENTED!!\n");
                     break;
                 case(0x15): // set the delay timer to vr
                     delay = regs[(instr & 0x0F00) >> 8];
@@ -337,7 +346,5 @@ int main(){
         }
 
     }
-
-    printf("%x\n", buffer[0x200]);
     fclose(fp);
 }
