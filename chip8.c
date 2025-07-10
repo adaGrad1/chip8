@@ -7,7 +7,6 @@
 #include "chip8.h"
 
 #define SCALE 10  // 640x320 window
-#define ROM_PATH "chip8-roms/roms/5-quirks.ch8"
 
 const uint16_t WIDTH = 64;
 const uint16_t HEIGHT = 32;
@@ -239,11 +238,9 @@ void cpu_execute_instruction(chip8_t* c8, uint16_t instr) {
 
         }
         else if ((instr & 0xF000) == 0xC000){ // random number <= arg
-            uint8_t r = instr & 0x0F00 >> 8;
+            uint8_t r = (instr & 0x0F00) >> 8;
             uint8_t max_val = instr & 0x00FF;
-            printf("%x, %x\n", c8->pc, instr);
-            printf("%d / %d\n", rand() % max_val, max_val);
-            c8->regs[r] = (rand() % max_val);
+            c8->regs[r] = (rand() & max_val);
         }
         else if ((instr & 0xF000) == 0xD000){ // draw sprite
             uint8_t x = c8->regs[(instr & 0x0F00) >> 8];
@@ -336,7 +333,15 @@ void input_update(chip8_t* chip8);
 void timer_update(chip8_t* chip8);
 
 
-int main(){
+int main(int argc, char *argv[]){
+    printf("%d\n", argc);
+    char* rom_path;
+    if(argc < 2){
+        printf("Please supply a ROM path as an argument!\n");
+        exit(1);
+    } else {
+        rom_path = argv[1];
+    }
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("CHIP-8 Display",
                                         SDL_WINDOWPOS_UNDEFINED,
@@ -347,7 +352,11 @@ int main(){
     
     chip8_t *c8 = calloc(1, sizeof(chip8_t));
 
-    FILE *fp = fopen(ROM_PATH, "rb");
+    FILE *fp = fopen(rom_path, "rb");
+    if (!fp) {
+        printf("File not found!\n");
+        exit(1);
+    }
     int bytesRead = fread((c8->mem)+START_ADDR, 1, BUFFER_SIZE-START_ADDR, fp);
     memcpy(c8->mem, &fontset, sizeof(fontset));
     c8->pc = START_ADDR;
