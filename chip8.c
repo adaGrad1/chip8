@@ -33,7 +33,8 @@ const uint8_t fontset[FONTSET_SIZE] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-void update_keypresses(uint8_t keys[16]) {
+void input_update(chip8_t *c8) {
+  uint8_t* keys = c8->keys;
   SDL_Event e;
 
   while (SDL_PollEvent(&e)) {
@@ -120,7 +121,7 @@ uint8_t tick() {
   return incr;
 }
 
-void draw_screen(SDL_Renderer *renderer, uint8_t display[32][64]) {
+void display_render(SDL_Renderer *renderer, uint8_t display[32][64]) {
   // Clear screen (black)
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
@@ -325,13 +326,7 @@ int cpu_decode_and_execute(chip8_t *c8) {
 // display.c - Rendering logic
 void display_clear(chip8_t *chip8);
 void display_draw_sprite(chip8_t *chip8, uint8_t x, uint8_t y, uint8_t height);
-void display_render(SDL_Renderer *renderer, chip8_t *chip8);
 
-// input.c - Keyboard handling
-void input_update(chip8_t *chip8);
-
-// timer.c - Timer management
-void timer_update(chip8_t *chip8);
 
 int main(int argc, char *argv[]) {
   printf("%d\n", argc);
@@ -374,9 +369,8 @@ int main(int argc, char *argv[]) {
       c8->sound_timer -= t;
     }
     if (t > 0) {
-      draw_screen(renderer, c8->display);
-      // draw_screen_cli(screen);
-      update_keypresses(c8->keys);
+      display_render(renderer, c8->display);
+      input_update(c8);
     };
   }
   fclose(fp);
